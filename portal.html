@@ -223,6 +223,9 @@
     </div>
 
     <script>
+        // Store current email data for AI analysis
+        let currentEmailData = null;
+
         async function loadEmails() {
             try {
                 const accessToken = localStorage.getItem('access_token');
@@ -340,6 +343,15 @@
                     }
                 }
 
+                // Store email data for AI analysis
+                currentEmailData = {
+                    subject: getHeader('Subject'),
+                    from: getHeader('From'),
+                    date: getHeader('Date'),
+                    body: body,
+                    snippet: email.snippet
+                };
+
                 // Display email in modal
                 const emailDetail = document.getElementById('emailDetail');
                 emailDetail.innerHTML = `
@@ -352,13 +364,7 @@
                     <div class="email-detail-body">${escapeHtml(body)}</div>
                     <div class="ai-section">
                         <h3>🤖 AI Analysis</h3>
-                        <button class="analyze-btn" onclick="analyzeEmail('${id}', ${escapeHtml(JSON.stringify({
-                            subject: getHeader('Subject'),
-                            from: getHeader('From'),
-                            date: getHeader('Date'),
-                            body: body,
-                            snippet: email.snippet
-                        }))})">Get AI Recommendations</button>
+                        <button class="analyze-btn" onclick="analyzeEmail()">Get AI Recommendations</button>
                         <div id="aiAnalysis"></div>
                     </div>
                 `;
@@ -370,9 +376,14 @@
             }
         }
 
-        async function analyzeEmail(id, emailData) {
+        async function analyzeEmail() {
             const aiAnalysis = document.getElementById('aiAnalysis');
             const analyzeBtn = document.querySelector('.analyze-btn');
+
+            if (!currentEmailData) {
+                aiAnalysis.innerHTML = '<div class="ai-analysis" style="color: #ffcccc;">Email data not available</div>';
+                return;
+            }
 
             analyzeBtn.disabled = true;
             analyzeBtn.textContent = 'Analyzing...';
@@ -383,7 +394,7 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ email: emailData })
+                    body: JSON.stringify({ email: currentEmailData })
                 });
 
                 if (!response.ok) {
