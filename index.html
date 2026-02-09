@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Glider AI</title>
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         body {
             margin: 0;
@@ -33,22 +35,9 @@
             from { opacity: 0; transform: translateY(-20px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        .login-btn {
-            display: inline-block;
+        #loginButton {
             margin-top: 2rem;
-            padding: 15px 40px;
-            background: white;
-            color: #667eea;
-            text-decoration: none;
-            border-radius: 50px;
-            font-weight: 600;
-            font-size: 1.1rem;
-            transition: transform 0.2s, box-shadow 0.2s;
             animation: fadeIn 1.5s ease-in;
-        }
-        .login-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
         }
     </style>
 </head>
@@ -56,7 +45,53 @@
     <div class="container">
         <h1>Glider AI</h1>
         <p>AI-powered email portal with Gmail integration</p>
-        <a href="/api/auth/login" class="login-btn">Login with Google</a>
+        <div id="loginButton"></div>
     </div>
+
+    <script>
+        // REPLACE THIS with your actual Google Client ID
+        const CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID';
+        const SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email';
+
+        let tokenClient;
+
+        function handleAuthClick() {
+            tokenClient.requestAccessToken();
+        }
+
+        function handleTokenResponse(response) {
+            if (response.error) {
+                console.error('Auth error:', response);
+                return;
+            }
+
+            // Store access token and user info
+            localStorage.setItem('access_token', response.access_token);
+
+            // Get user info and redirect
+            fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+                headers: { Authorization: `Bearer ${response.access_token}` }
+            })
+            .then(r => r.json())
+            .then(userInfo => {
+                localStorage.setItem('user_email', userInfo.email);
+                localStorage.setItem('user_name', userInfo.name);
+                window.location.href = '/portal.html';
+            });
+        }
+
+        window.onload = function() {
+            // Initialize the token client
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID,
+                scope: SCOPES,
+                callback: handleTokenResponse,
+            });
+
+            // Create custom styled button
+            const loginBtn = document.getElementById('loginButton');
+            loginBtn.innerHTML = '<button onclick="handleAuthClick()" style="padding: 15px 40px; background: white; color: #667eea; border: none; border-radius: 50px; font-weight: 600; font-size: 1.1rem; cursor: pointer; transition: all 0.2s;">Login with Google</button>';
+        };
+    </script>
 </body>
 </html>
