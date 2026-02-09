@@ -6,17 +6,23 @@ export default async function handler(req, res) {
   }
 
   try {
+    console.log('Weekly insights request received');
     const { ANTHROPIC_API_KEY } = process.env;
 
     if (!ANTHROPIC_API_KEY) {
+      console.error('No API key found');
       return res.status(500).json({ error: 'Anthropic API key not configured' });
     }
 
+    console.log('Request body:', JSON.stringify(req.body).substring(0, 200));
     const { emails } = req.body;
 
     if (!emails || !Array.isArray(emails) || emails.length === 0) {
+      console.error('Invalid emails data:', { emails: emails?.length });
       return res.status(400).json({ error: 'No emails provided' });
     }
+
+    console.log(`Processing ${emails.length} emails`);
 
     // Initialize Anthropic client
     const anthropic = new Anthropic({
@@ -84,9 +90,11 @@ Keep it concise, actionable, and specific. Reference email numbers when recommen
 
   } catch (error) {
     console.error('Weekly insights error:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       error: 'Failed to generate insights',
-      details: error.message
+      details: error.message,
+      stack: error.stack
     });
   }
 }
