@@ -105,6 +105,95 @@
             padding: 40px;
             color: #999;
         }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .modal-content {
+            background: white;
+            max-width: 800px;
+            margin: 40px auto;
+            border-radius: 10px;
+            padding: 30px;
+            position: relative;
+        }
+        .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+            background: none;
+            border: none;
+        }
+        .close-btn:hover {
+            color: #333;
+        }
+        .email-detail-subject {
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+        }
+        .email-detail-meta {
+            color: #666;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #eee;
+        }
+        .email-detail-body {
+            color: #333;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            white-space: pre-wrap;
+        }
+        .ai-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .ai-section h3 {
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .ai-analysis {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 10px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+        .analyze-btn {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+        .analyze-btn:hover {
+            background: #f0f0f0;
+        }
+        .analyze-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -122,6 +211,14 @@
         <div class="email-list">
             <div id="loading" class="loading">Loading your emails...</div>
             <div id="emails"></div>
+        </div>
+    </div>
+
+    <!-- Email Detail Modal -->
+    <div id="emailModal" class="modal">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeModal()">&times;</button>
+            <div id="emailDetail"></div>
         </div>
     </div>
 
@@ -217,9 +314,104 @@
             `).join('');
         }
 
-        function viewEmail(id) {
-            alert('Email viewer coming soon! ID: ' + id);
-            // TODO: Implement email detail view
+        async function viewEmail(id) {
+            const accessToken = localStorage.getItem('access_token');
+
+            try {
+                // Fetch full email details
+                const response = await fetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+
+                if (!response.ok) throw new Error('Failed to fetch email');
+
+                const email = await response.json();
+                const headers = email.payload.headers;
+                const getHeader = (name) => headers.find(h => h.name === name)?.value || '';
+
+                // Extract body
+                let body = email.snippet;
+                if (email.payload.body.data) {
+                    body = atob(email.payload.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+                } else if (email.payload.parts) {
+                    const textPart = email.payload.parts.find(p => p.mimeType === 'text/plain');
+                    if (textPart && textPart.body.data) {
+                        body = atob(textPart.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+                    }
+                }
+
+                // Display email in modal
+                const emailDetail = document.getElementById('emailDetail');
+                emailDetail.innerHTML = `
+                    <div class="email-detail-subject">${escapeHtml(getHeader('Subject') || '(No subject)')}</div>
+                    <div class="email-detail-meta">
+                        <strong>From:</strong> ${escapeHtml(getHeader('From'))}<br>
+                        <strong>Date:</strong> ${formatDate(getHeader('Date'))}<br>
+                        <strong>To:</strong> ${escapeHtml(getHeader('To'))}
+                    </div>
+                    <div class="email-detail-body">${escapeHtml(body)}</div>
+                    <div class="ai-section">
+                        <h3>🤖 AI Analysis</h3>
+                        <button class="analyze-btn" onclick="analyzeEmail('${id}', ${escapeHtml(JSON.stringify({
+                            subject: getHeader('Subject'),
+                            from: getHeader('From'),
+                            date: getHeader('Date'),
+                            body: body,
+                            snippet: email.snippet
+                        }))})">Get AI Recommendations</button>
+                        <div id="aiAnalysis"></div>
+                    </div>
+                `;
+
+                document.getElementById('emailModal').style.display = 'block';
+            } catch (error) {
+                console.error('Error loading email:', error);
+                alert('Failed to load email details');
+            }
+        }
+
+        async function analyzeEmail(id, emailData) {
+            const aiAnalysis = document.getElementById('aiAnalysis');
+            const analyzeBtn = document.querySelector('.analyze-btn');
+
+            analyzeBtn.disabled = true;
+            analyzeBtn.textContent = 'Analyzing...';
+
+            try {
+                const response = await fetch('/api/ai/analyze-email', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email: emailData })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Analysis failed');
+                }
+
+                const data = await response.json();
+                aiAnalysis.innerHTML = `<div class="ai-analysis">${escapeHtml(data.analysis)}</div>`;
+            } catch (error) {
+                console.error('Error analyzing email:', error);
+                aiAnalysis.innerHTML = `<div class="ai-analysis" style="color: #ffcccc;">Failed to analyze: ${error.message}</div>`;
+            } finally {
+                analyzeBtn.disabled = false;
+                analyzeBtn.textContent = 'Analyze Again';
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('emailModal').style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('emailModal');
+            if (event.target === modal) {
+                closeModal();
+            }
         }
 
         function logout() {
