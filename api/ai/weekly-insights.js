@@ -29,9 +29,9 @@ export default async function handler(req, res) {
       apiKey: ANTHROPIC_API_KEY,
     });
 
-    // Format emails for analysis
+    // Format emails for analysis (keep it concise for faster processing)
     const emailSummary = emails.map((email, idx) =>
-      `${idx + 1}. [${email.date}] From: ${email.from}\n   Subject: ${email.subject}\n   Preview: ${email.snippet}`
+      `${idx + 1}. From: ${email.from}\n   Subject: ${email.subject}\n   ${email.snippet.substring(0, 80)}...`
     ).join('\n\n');
 
     // Create prompt for Claude
@@ -64,10 +64,10 @@ Please provide a comprehensive analysis with:
 
 Keep it concise, actionable, and specific. Reference email numbers when recommending actions.`;
 
-    // Call Claude
+    // Call Claude (use Haiku for faster response within timeout)
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 2048,
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1500,
       messages: [
         {
           role: 'user',
