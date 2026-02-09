@@ -522,14 +522,30 @@
 
                 insightsContent.textContent = `Analyzing ${data.messages.length} emails...`;
 
-                // Fetch details for each email (in batches for performance)
-                const emailDetails = await Promise.all(
-                    data.messages.slice(0, 50).map(msg =>
-                        fetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`, {
-                            headers: { 'Authorization': `Bearer ${accessToken}` }
-                        }).then(r => r.json())
-                    )
-                );
+                // Fetch details in batches to avoid rate limiting
+                const batchSize = 10;
+                const emailDetails = [];
+                const messages = data.messages.slice(0, 50);
+
+                for (let i = 0; i < messages.length; i += batchSize) {
+                    const batch = messages.slice(i, i + batchSize);
+                    const batchResults = await Promise.all(
+                        batch.map(msg =>
+                            fetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`, {
+                                headers: { 'Authorization': `Bearer ${accessToken}` }
+                            }).then(r => r.json())
+                        )
+                    );
+                    emailDetails.push(...batchResults);
+
+                    // Update progress
+                    insightsContent.textContent = `Analyzing ${data.messages.length} emails... (${emailDetails.length}/${messages.length})`;
+
+                    // Small delay between batches to avoid rate limiting
+                    if (i + batchSize < messages.length) {
+                        await new Promise(resolve => setTimeout(resolve, 200));
+                    }
+                }
 
                 const emails = emailDetails.map(email => {
                     const headers = email.payload.headers;
